@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ESP LED Control</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            padding: 20px;
+        }
+
+        button {
+            padding: 10px;
+            font-size: 16px;
+            margin: 10px;
+        }
+
+        #sensorData {
+            margin-top: 20px;
+            font-size: 18px;
+        }
+
+        /* Define button colors based on status */
+        .success { background-color: green; color: white; }
+        .failure { background-color: red; color: white; }
+        .pending { background-color: yellow; color: black; }
+        .default { background-color: #3498db; color: white; }
+    </style>
+</head>
+<body>
+    <h1>ESP LED Control</h1>
+
+    <!-- Buttons with different colors based on status -->
+    <button id="toggleButton" class="default">Toggle LED</button>
+    <button id="button1" class="success">Button 1</button>
+    <button id="button2" class="failure">Button 2</button>
+    <button id="button3" class="pending">Button 3</button>
+    <button id="button4" class="default">Button 4</button>
+
+    <div id="sensorData">Temperature: -°C, Humidity: -%</div>
+
+    <script>
+        const websocket = new WebSocket(`ws://${document.location.hostname}:81`);
+
+        websocket.addEventListener("error", (event) => console.error("WebSocket error:", event));
+        websocket.addEventListener("open", () => {
+            console.log("WebSocket connection opened");
+            sendWebSocketMessage("WebSocket connected", "get_status");
+        });
+        websocket.addEventListener("message", (event) => {
+            const receivedMessage = JSON.parse(event.data);
+            console.log("Received message from server:", receivedMessage);
+            updateSensorData(receivedMessage);
+            updateButtonStatus(receivedMessage);
+        });
+        websocket.addEventListener("close", () => console.log("WebSocket connection closed"));
+
+        document.getElementById("toggleButton").addEventListener("click", () => sendWebSocketMessage("switch", "14"));
+        document.getElementById("button1").addEventListener("click", () => sendWebSocketMessage("switch", "12"));
+        document.getElementById("button2").addEventListener("click", () => sendWebSocketMessage("switch", "13"));
+        document.getElementById("button3").addEventListener("click", () => sendWebSocketMessage("switch", "15"));
+        document.getElementById("button4").addEventListener("click", () => sendWebSocketMessage("switch", "3"));
+
+        function sendWebSocketMessage(messageType, content) {
+            const message = { content, message_type: messageType };
+            try { websocket.send(JSON.stringify(message)); }
+            catch (error) { console.error("Error sending WebSocket message:", error); }
+        }
+
+        function updateSensorData(message) {
+            const temperature = message.temp !== undefined ? message.temp : '-';
+            const humidity = message.humid !== undefined ? message.humid : '-';
+            document.getElementById("sensorData").innerText = `Temperature: ${temperature}°C, Humidity: ${humidity}%`;
+        }
+
+        function updateButtonStatus(message) {
+            const buttonStatus = message.content;
+
+            // Reset button classes to default
+            document.getElementById("toggleButton").className = "default";
+            document.getElementById("button1").className = "default";
+            document.getElementById("button2").className = "default";
+            document.getElementById("button3").className = "default";
+            document.getElementById("button4").className = "default";
+
+            // Set button classes based on the received status
+            for (const buttonId in buttonStatus) {
+                const status = buttonStatus[buttonId];
+                const buttonElement = document.getElementById(buttonId);
+                if (buttonElement) {
+                    buttonElement.className = status;
+                }
+            }
+        }
+
+        window.addEventListener("beforeunload", () => websocket.close());
+    </script>
+</body>
+</html>
